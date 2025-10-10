@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import re
 
 # CSV 불러오기
 @st.cache_data
@@ -55,7 +56,7 @@ query = st.text_input("", "", placeholder="예: 히마리 히카리 (띄어쓰�
 min_price, max_price = st.slider("가격대 (만원)", 0, 100, (0, 100), step=1)
 min_limit = st.number_input("최소 한정 캐릭터 개수", min_value=0, max_value=100, value=0, step=1)
 
-# 버튼들
+# 버튼
 col1, col2 = st.columns(2)
 with col1:
     if st.button("검색"):
@@ -79,9 +80,10 @@ if st.session_state.search_clicked:
         filtered["한정"] = pd.to_numeric(filtered["한정"], errors="coerce")
         filtered = filtered[filtered["한정"] >= min_limit]
 
-    # 검색어 AND 조건
-    if terms:
-        filtered = filtered[filtered["캐릭터 목록"].apply(lambda x: all(term in str(x) for term in terms))]
+    # ✅ 정확히 일치하는 단어만 포함 (AND 조건)
+    for term in terms:
+        pattern = rf'\b{re.escape(term)}\b'  # 단어 경계(\b)로 감싸서 완전 일치만 검색
+        filtered = filtered[filtered["캐릭터 목록"].str.contains(pattern, na=False, regex=True)]
 
     # 결과 출력
     if not filtered.empty:
@@ -89,8 +91,6 @@ if st.session_state.search_clicked:
         st.dataframe(filtered[["번호", "한정", "가격", "캐릭터 목록"]], use_container_width=True)
     else:
         st.warning("조건에 맞는 계정이 없습니다.")
-else:
-    st.info("검색어를 입력하고 [검색] 버튼을 눌러주세요.")
 
 # 사용 방법 안내
 st.markdown("""
