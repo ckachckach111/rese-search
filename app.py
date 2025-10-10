@@ -2,9 +2,13 @@ import streamlit as st
 import pandas as pd
 
 # CSV 불러오기
-df = pd.read_csv("accounts.csv")
+@st.cache_data
+def load_data():
+    return pd.read_csv("accounts.csv", encoding="utf-8-sig")
 
-# 기본 페이지 설정
+df = load_data()
+
+# 페이지 설정
 st.set_page_config(page_title="계정 검색", layout="centered")
 
 # 중앙 정렬용 CSS
@@ -21,7 +25,6 @@ st.markdown("""
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            height: 85vh;
         }
         .stSlider {
             width: 400px;
@@ -41,42 +44,46 @@ st.markdown("""
 # 제목
 st.markdown("<h2 style='text-align:center;'>🔎 계정 검색</h2>", unsafe_allow_html=True)
 
-# 검색 입력창
+# 입력창 (검색어)
 query = st.text_input("", "", placeholder="예: 히마리 히카리 (띄어쓰기로 여러 캐릭터 검색)")
 
-# 가격 필터
+# 필터
 min_price, max_price = st.slider("가격대 (만원)", 0, 100, (0, 100), step=1)
-
-# 한정 캐릭터 최소 개수
 min_limit = st.number_input("최소 한정 캐릭터 개수", min_value=0, max_value=100, value=0, step=1)
 
-# 검색 버튼
-search_clicked = st.button("검색")
+# ✅ 버튼을 누르든 안 누르든 항상 검색창 유지
+search_clicked = st.session_state.get("search_clicked", False)
+if st.button("검색"):
+    st.session_state.search_clicked = True
+    search_clicked = True
 
-# 검색 결과 영역
+# ✅ 검색 결과 표시
 if search_clicked:
-    # 여러 단어(공백 구분)를 모두 포함하는 계정 찾기 (AND 조건)
     terms = query.split()
     filtered = df.copy()
 
-    # 필터 적용
+    # 가격 필터
     if "가격" in df.columns:
         filtered["가격"] = pd.to_numeric(filtered["가격"], errors="coerce")
         filtered = filtered[(filtered["가격"] >= min_price) & (filtered["가격"] <= max_price)]
 
+    # 한정 캐릭터 수 필터
     if "한정" in df.columns:
         filtered["한정"] = pd.to_numeric(filtered["한정"], errors="coerce")
         filtered = filtered[filtered["한정"] >= min_limit]
 
+    # 검색어 AND 조건
     if terms:
         filtered = filtered[filtered["캐릭터 목록"].apply(lambda x: all(term in str(x) for term in terms))]
 
+    # 결과 출력
     if not filtered.empty:
+        st.write(f"🔍 총 {len(filtered)}개 계정이 검색되었습니다.")
         st.dataframe(filtered[["번호", "한정", "가격", "캐릭터 목록"]], use_container_width=True)
     else:
         st.warning("조건에 맞는 계정이 없습니다.")
 
-# 사용방법 안내 (항상 하단에 표시)
+# 사용 방법 안내
 st.markdown("""
 ---
 ### 💡 사용 방법
