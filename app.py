@@ -38,8 +38,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 검색 입력창
+# 제목
 st.markdown("<h2 style='text-align:center;'>🔎 계정 검색</h2>", unsafe_allow_html=True)
+
+# 검색 입력창
 query = st.text_input("", "", placeholder="예: 히마리 히카리 (띄어쓰기로 여러 캐릭터 검색)")
 
 # 가격 필터
@@ -49,7 +51,10 @@ min_price, max_price = st.slider("가격대 (만원)", 0, 100, (0, 100), step=1)
 min_limit = st.number_input("최소 한정 캐릭터 개수", min_value=0, max_value=100, value=0, step=1)
 
 # 검색 버튼
-if st.button("검색"):
+search_clicked = st.button("검색")
+
+# 검색 결과 영역
+if search_clicked:
     # 여러 단어(공백 구분)를 모두 포함하는 계정 찾기 (AND 조건)
     terms = query.split()
     filtered = df.copy()
@@ -67,11 +72,11 @@ if st.button("검색"):
         filtered = filtered[filtered["캐릭터 목록"].apply(lambda x: all(term in str(x) for term in terms))]
 
     if not filtered.empty:
-        st.dataframe(filtered[["번호", "한정", "가격", "캐릭터 목록"]])
+        st.dataframe(filtered[["번호", "한정", "가격", "캐릭터 목록"]], use_container_width=True)
     else:
         st.warning("조건에 맞는 계정이 없습니다.")
 
-# 사용방법 안내
+# 사용방법 안내 (항상 하단에 표시)
 st.markdown("""
 ---
 ### 💡 사용 방법
