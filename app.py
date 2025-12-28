@@ -1,11 +1,14 @@
 import streamlit as st
 import pandas as pd
 
+# ===== 페이지 설정 (검색엔진 노출용 타이틀 포함) =====
+st.set_page_config(
+    page_title="블루아카이브 리세계정 | 리세 계정 검색 사이트",
+    layout="centered",
+)
+
 # CSV 불러오기
 df = pd.read_csv("accounts.csv")
-
-# 기본 페이지 설정
-st.set_page_config(page_title="계정 검색", layout="centered")
 
 # 중앙 정렬용 CSS
 st.markdown("""
@@ -38,8 +41,16 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# 제목
-st.markdown("<h2 style='text-align:center;'>🔎 계정 검색</h2>", unsafe_allow_html=True)
+# ===== 검색엔진(SEO)용 헤더 — 구글이 읽기 쉬운 문구를 상단에 배치 =====
+st.markdown("""
+<h1 style="text-align:center; margin-bottom:0.2em;">블루아카이브 리세계정 검색</h1>
+<p style="text-align:center; margin-top:0.1em; margin-bottom:1.2em;">
+블루아카이브 리세계정(리세 계정) 판매 목록을 한눈에 검색할 수 있는 사이트입니다.<br>
+가격, 한정 캐릭터 수, 캐릭터 이름으로 원하는 계정을 찾아보세요.
+</p>
+""", unsafe_allow_html=True)
+
+# (기존의 작은 제목은 제거 - 위의 SEO용 헤더로 대체)
 
 # 검색 입력창
 query = st.text_input("", "", placeholder="예: 히마리 히카리 (띄어쓰기로 여러 캐릭터 검색)")
