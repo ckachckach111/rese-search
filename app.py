@@ -142,10 +142,10 @@ if st.button("검색"):
     # 결과 출력: 페스캐릭터수는 표에 보여주지 않음
     if not result.empty:
         st.write(f"🔍 총 {len(result)}개 계정 (패스는 CSV값 사용)")
-        st.dataframe(result[["번호", "한정", "가격", "패스", "캐릭터 목록"]], use_container_width=True, height=700)
+        st.dataframe(result[["번호", "패스", "한정", "가격", "캐릭터 목록"]], use_container_width=True, height=700)
     else:
         st.warning("조건에 맞는 계정이 없습니다.")
-        debug_cols = ["번호", "한정", "가격", "패스", "캐릭터 목록", "_tokens"]
+        debug_cols = ["번호", "패스", "한정", "가격", "캐릭터 목록", "_tokens"]
         st.dataframe(df.head(10)[[c for c in debug_cols if c in df.columns]], use_container_width=True, height=400)
 
 # 사용 방법
