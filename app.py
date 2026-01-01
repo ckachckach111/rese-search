@@ -78,19 +78,54 @@ fes_list = [
 fes_names_norm = [unicodedata.normalize("NFKC", n).lower() for n in fes_list]
 
 # -------------------------
-# 토큰 컬럼, 패스, 페스캐릭터수 생성 (있으면 덮어씌움)
+# 토큰 컬럼 생성 (전체 텍스트) — 검색용
 # -------------------------
 df["캐릭터 목록"] = df["캐릭터 목록"].fillna("").astype(str)
 df["_tokens"] = df["캐릭터 목록"].apply(normalize_text_for_tokens)
-df["패스"] = df["_tokens"].apply(len)
 
-def count_fes_chars(tokens):
-    if not isinstance(tokens, (list, tuple)):
-        return 0
-    # tokens are lower-case
-    return sum(1 for name in fes_names_norm if name in tokens)
+# -------------------------
+# 패스 갯수: CSV의 값 사용 (기존 잘못된 계산 삭제)
+# -------------------------
+# 우선 후보 컬럼명 중 하나가 있으면 그걸 사용
+pass_col = None
+for candidate in ["패스 갯수", "패스", "패스갯수"]:
+    if candidate in df.columns:
+        pass_col = candidate
+        break
 
-df["페스캐릭터수"] = df["_tokens"].apply(count_fes_chars)
+if pass_col is None:
+    # 패스 갯수 컬럼이 없으면 경고 후 기본 0으로 설정
+    st.warning("CSV에 '패스 갯수' 컬럼이 없습니다. 패스 필터는 비활성화됩니다.")
+    df["패스"] = 0
+else:
+    # CSV에 적힌 값을 그대로 숫자로 읽어서 df['패스']에 넣음
+    df["패스"] = pd.to_numeric(df[pass_col], errors="coerce").fillna(0).astype(int)
+
+# -------------------------
+# 페스캐릭터수: CSV에 있으면 사용, 없으면 한정 블록에서 계산
+# -------------------------
+if "페스캐릭터수" in df.columns:
+    df["페스캐릭터수"] = pd.to_numeric(df["페스캐릭터수"], errors="coerce").fillna(0).astype(int)
+else:
+    # extract limited block inside 【...】 and count fes names
+    def extract_limited_block(s: str):
+        m = re.search(r'【([^】]*)】', s)
+        if m:
+            return m.group(1)
+        if '/' in s:
+            return s.split('/', 1)[0]
+        return s
+    df["_limited_text"] = df["캐릭터 목록"].apply(extract_limited_block)
+    df["_limited_tokens"] = df["_limited_text"].apply(normalize_text_for_tokens)
+    def count_fes_chars_in_limited(tokens):
+        if not isinstance(tokens, (list, tuple)):
+            return 0
+        cnt = 0
+        for name in fes_names_norm:
+            if name in tokens:
+                cnt += 1
+        return cnt
+    df["페스캐릭터수"] = df["_limited_tokens"].apply(count_fes_chars_in_limited)
 
 # -------------------------
 # UI 스타일 (테이블 넓이 등)
@@ -112,10 +147,12 @@ st.markdown("<h2 style='text-align:center;'>🎮 계정 검색 (패스/페스 �
 query = st.text_input("", "", placeholder="예: 히마리 히카리 (띄어쓰기로 AND 검색)")
 min_price, max_price = st.slider("가격대 (만원)", 0, 100, (0, 100))
 min_limit = st.number_input("최소 한정 캐릭터 수", 0, 100, 0)
-# 패스 범위 슬라이더: df 값 기반으로 초기화
+
+# 패스 범위 슬라이더: CSV의 '패스' 값(이미 df['패스']로 매핑됨)을 사용
 min_pass_possible = int(df["패스"].min()) if not df["패스"].isnull().all() else 0
 max_pass_possible = int(df["패스"].max()) if not df["패스"].isnull().all() else 0
-min_pass, max_pass = st.slider("패스 갯수 (캐릭터 수)", min_pass_possible, max_pass_possible, (min_pass_possible, max_pass_possible))
+min_pass, max_pass = st.slider("패스 갯수 (CSV값)", min_pass_possible, max_pass_possible, (min_pass_possible, max_pass_possible))
+
 min_fes = st.number_input("최소 페스 캐릭터 수", min_value=0, max_value=20, value=0, step=1)
 
 if st.button("검색"):
@@ -125,14 +162,18 @@ if st.button("검색"):
     result = result[(result["가격"] >= min_price) & (result["가격"] <= max_price)]
     result["한정"] = pd.to_numeric(result["한정"], errors="coerce").fillna(0)
     result = result[result["한정"] >= min_limit]
-    # 패스 필터
+
+    # 패스 필터: CSV의 '패스' 값을 그대로 사용
     result = result[(result["패스"] >= min_pass) & (result["패스"] <= max_pass)]
+
     # 페스 필터
     result = result[result["페스캐릭터수"] >= min_fes]
-    # 캐릭터 AND 검색 (토큰 단위 정확매칭)
+
+    # 캐릭터 AND 검색 (토큰 단위 정확매칭) — 전체 목록 기준
     terms = normalize_search_terms(query)
     if terms:
         result = result[result["_tokens"].apply(lambda toks: all(term in toks for term in terms))]
+
     # 결과 출력
     if not result.empty:
         st.write(f"🔍 총 {len(result)}개 계정 (표에 패스 / 페스캐릭터수 포함)")
@@ -140,13 +181,14 @@ if st.button("검색"):
     else:
         st.warning("조건에 맞는 계정이 없습니다.")
         st.markdown("**디버그: CSV 상위 10행 (토큰/패스/페스 포함)**")
-        st.dataframe(df.head(10)[["번호", "한정", "가격", "패스", "페스캐릭터수", "캐릭터 목록", "_tokens"]], use_container_width=True, height=400)
+        debug_cols = ["번호", "한정", "가격", "패스", "페스캐릭터수", "캐릭터 목록", "_limited_text", "_limited_tokens", "_tokens"]
+        st.dataframe(df.head(10)[[c for c in debug_cols if c in df.columns]], use_container_width=True, height=400)
 
 # 사용 방법
 st.markdown("""
 ---
 ### 💡 사용 방법
 1️⃣ 캐릭터 이름을 띄어쓰기로 입력하면 **AND 검색**됩니다. (토큰 단위 정확 매칭)  
-2️⃣ 가격 / 한정 / 패스(캐릭터 수) / 페스캐릭터수 로 필터링 가능합니다.  
-3️⃣ 결과 표에서 `패스`(총 캐릭터 수)와 `페스캐릭터수`를 확인하세요.
+2️⃣ 가격 / 한정 / 패스(CSV값) / 페스캐릭터수 로 필터링 가능합니다.  
+3️⃣ 결과 표에서 `패스`(CSV값)와 `페스캐릭터수`를 확인하세요.
 """, unsafe_allow_html=True)
