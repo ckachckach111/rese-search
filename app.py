@@ -85,7 +85,7 @@ else:
     df["패스"] = pd.to_numeric(df[pass_col], errors="coerce").fillna(0).astype(int)
 
 # -------------------------
-# 페스캐릭터수: CSV에 있으면 사용, 없으면 0으로 설정 (계산하지 않음)
+# 페스캐릭터수: CSV에 있으면 사용, 없으면 0으로 설정 (계산 금지)
 # -------------------------
 if "페스캐릭터수" in df.columns:
     df["페스캐릭터수"] = pd.to_numeric(df["페스캐릭터수"], errors="coerce").fillna(0).astype(int)
@@ -139,7 +139,7 @@ if st.button("검색"):
     if terms:
         result = result[result["_tokens"].apply(lambda toks: all(term in toks for term in terms))]
 
-    # 결과 출력: 페스캐릭터수 컬럼은 제거하여 출력
+    # 결과 출력: 페스캐릭터수는 표에 보여주지 않음
     if not result.empty:
         st.write(f"🔍 총 {len(result)}개 계정 (패스는 CSV값 사용)")
         st.dataframe(result[["번호", "한정", "가격", "패스", "캐릭터 목록"]], use_container_width=True, height=700)
