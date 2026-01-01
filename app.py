@@ -4,6 +4,10 @@ import pandas as pd
 # CSV 불러오기
 df = pd.read_csv("accounts.csv")
 
+# === 패스 갯수 컬럼 처리 ===
+if '패스 갯수' in df.columns:
+    df['패스 갯수'] = pd.to_numeric(df['패스 갯수'], errors='coerce').fillna(0).astype(int)
+
 # 기본 페이지 설정
 st.set_page_config(page_title="계정 검색", layout="centered")
 
@@ -46,6 +50,12 @@ query = st.text_input("", "", placeholder="예: 히마리 히카리 (띄어쓰�
 
 # 가격 필터
 min_price, max_price = st.slider("가격대 (만원)", 0, 100, (0, 100), step=1)
+
+# === 패스 갯수 필터 ===
+if '패스 갯수' in df.columns:
+    min_pass = int(df['패스 갯수'].min())
+    max_pass = int(df['패스 갯수'].max())
+    pass_range = st.slider('패스 갯수', min_pass, max_pass, (min_pass, max_pass))
 
 # 한정 캐릭터 최소 개수
 min_limit = st.number_input("최소 한정 캐릭터 개수", min_value=0, max_value=100, value=0, step=1)
