@@ -64,38 +64,29 @@ def normalize_search_terms(raw_query: str):
     return normalized
 
 # -------------------------
-# 토큰 컬럼 생성 (전체 텍스트) — 검색용 (기존 로직 유지)
+# 토큰 컬럼 생성 (검색용)
 # -------------------------
 df["캐릭터 목록"] = df["캐릭터 목록"].fillna("").astype(str)
 df["_tokens"] = df["캐릭터 목록"].apply(normalize_text_for_tokens)
 
 # -------------------------
-# 패스 갯수: CSV의 값 사용 (계산 금지)
+# 패스 갯수: CSV 값만 사용
 # -------------------------
 pass_col = None
-for candidate in ["패스 갯수", "패스", "패스갯수"]:
-    if candidate in df.columns:
-        pass_col = candidate
+for c in ["패스 갯수", "패스", "패스갯수"]:
+    if c in df.columns:
+        pass_col = c
         break
 
 if pass_col is None:
-    st.warning("CSV에 '패스 갯수' 컬럼이 없습니다. 패스 필터은 비활성화됩니다.")
     df["패스"] = 0
 else:
     df["패스"] = pd.to_numeric(df[pass_col], errors="coerce").fillna(0).astype(int)
 
 # -------------------------
-# 페스캐릭터수: CSV에 있으면 사용, 없으면 0으로 설정 (계산 금지)
+# UI
 # -------------------------
-if "페스캐릭터수" in df.columns:
-    df["페스캐릭터수"] = pd.to_numeric(df["페스캐릭터수"], errors="coerce").fillna(0).astype(int)
-else:
-    df["페스캐릭터수"] = 0
-
-# -------------------------
-# UI 스타일 (테이블 넓이 등)
-# -------------------------
-st.set_page_config(page_title="계정 검색 (패스 CSV 사용)", layout="wide")
+st.set_page_config(page_title="계정 검색", layout="wide")
 st.markdown("""
 <style>
 div[data-testid="stDataFrame"] table { width: 100% !important; }
@@ -104,55 +95,61 @@ div[data-testid="stDataFrame"] td:nth-child(4) { min-width: 600px !important; ma
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h2 style='text-align:center;'>🎮 계정 검색 (패스 CSV 사용)</h2>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align:center;'>🎮 계정 검색</h2>", unsafe_allow_html=True)
 
 # -------------------------
-# 검색 조건 UI
+# 검색 조건
 # -------------------------
 query = st.text_input("", "", placeholder="예: 히마리 히카리 (띄어쓰기로 AND 검색)")
 min_price, max_price = st.slider("가격대 (만원)", 0, 100, (0, 100))
 min_limit = st.number_input("최소 한정 캐릭터 수", 0, 100, 0)
 
-# 패스 슬라이더: df['패스'] (CSV에서 읽은 값)
-min_pass_possible = int(df["패스"].min()) if not df["패스"].isnull().all() else 0
-max_pass_possible = int(df["패스"].max()) if not df["패스"].isnull().all() else 0
-min_pass, max_pass = st.slider("패스 갯수 (CSV값)", min_pass_possible, max_pass_possible, (min_pass_possible, max_pass_possible))
+min_pass_possible = int(df["패스"].min())
+max_pass_possible = int(df["패스"].max())
+min_pass, max_pass = st.slider("패스 갯수", min_pass_possible, max_pass_possible, (min_pass_possible, max_pass_possible))
 
-min_fes = st.number_input("최소 페스 캐릭터 수", min_value=0, max_value=100, value=0, step=1)
-
+# -------------------------
+# 검색 실행
+# -------------------------
 if st.button("검색"):
     result = df.copy()
-    # 가격/한정 필터 (숫자 안전)
+
     result["가격"] = pd.to_numeric(result["가격"], errors="coerce")
     result = result[(result["가격"] >= min_price) & (result["가격"] <= max_price)]
+
     result["한정"] = pd.to_numeric(result["한정"], errors="coerce").fillna(0)
     result = result[result["한정"] >= min_limit]
 
-    # 패스 필터: CSV의 패스 값을 그대로 사용
     result = result[(result["패스"] >= min_pass) & (result["패스"] <= max_pass)]
 
-    # 페스 필터: CSV의 페스캐릭터수 사용 (계산하지 않음)
-    result = result[result["페스캐릭터수"] >= min_fes]
-
-    # 캐릭터 AND 검색 (토큰 단위 정확매칭) — 전체 목록 기준
     terms = normalize_search_terms(query)
     if terms:
-        result = result[result["_tokens"].apply(lambda toks: all(term in toks for term in terms))]
+        result = result[result["_tokens"].apply(lambda t: all(term in t for term in terms))]
 
-    # 결과 출력: 페스캐릭터수는 표에 보여주지 않음
     if not result.empty:
-        st.write(f"🔍 총 {len(result)}개 계정 (패스는 CSV값 사용)")
-        st.dataframe(result[["번호", "패스", "한정", "가격", "캐릭터 목록"]], use_container_width=True, height=700)
+        st.write(f"🔍 총 {len(result)}개 계정")
+        st.dataframe(
+            result[["번호", "한정", "가격", "패스", "캐릭터 목록"]],
+            use_container_width=True,
+            height=700
+        )
     else:
         st.warning("조건에 맞는 계정이 없습니다.")
-        debug_cols = ["번호", "패스", "한정", "가격", "캐릭터 목록", "_tokens"]
-        st.dataframe(df.head(10)[[c for c in debug_cols if c in df.columns]], use_container_width=True, height=400)
 
-# 사용 방법
+# -------------------------
+# 사용 설명 (화면 하단)
+# -------------------------
+st.markdown("---")
 st.markdown("""
----
-### 💡 사용 방법
-1️⃣ 캐릭터 이름을 띄어쓰기로 입력하면 **AND 검색**됩니다.  
-2️⃣ 가격 / 한정 / 패스(CSV값) / 페스캐릭터수 로 필터링 가능합니다.  
-3️⃣ 결과 표에서 `패스`(CSV값)만 보이며, `페스캐릭터수`는 표에 표시되지 않습니다.
-""", unsafe_allow_html=True)
+### 사용 방법
+- **검색창**: 캐릭터 이름을 띄어쓰기로 여러 개 입력하면 *AND* 검색됩니다.  
+  예: `히카리 히마리` → 두 이름 모두 포함된 계정만 표시됩니다.  
+- **가격대 (만원)**: 슬라이더로 원하는 가격 범위를 선택하세요 (단위: 만원).  
+- **최소 한정 캐릭터 수**: 한정 캐릭터(숫자) 최소 개수 지정.  
+- **패스 갯수**: CSV에 적힌 '패스 갯수' 값을 기준으로 슬라이더 필터가 동작합니다.  
+  (CSV 컬럼명이 `패스 갯수`, `패스`, `패스갯수` 중 하나면 자동 인식합니다.)  
+- **검색 버튼**: 조건을 설정한 뒤 '검색'을 클릭하면 결과가 표시됩니다.  
+- **결과 표 컬럼**: `번호`, `한정`, `가격`, `패스`, `캐릭터 목록` 순으로 표시됩니다.
+
+> 문제 발생 시: CSV의 헤더(첫 줄)와 상위 5개 행을 복사해서 보내주시면 바로 확인해 드리겠습니다.
+""")
